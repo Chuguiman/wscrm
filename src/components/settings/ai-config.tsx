@@ -41,11 +41,23 @@ const HANDOFF_QUEUE = '__queue__';
 const PROVIDER_LABEL: Record<AiProvider, string> = {
   openai: 'OpenAI',
   anthropic: 'Anthropic (Claude)',
+  openrouter: 'OpenRouter (any model)',
 };
 
 const KEY_PLACEHOLDER: Record<AiProvider, string> = {
   openai: 'sk-...',
   anthropic: 'sk-ant-...',
+  openrouter: 'sk-or-...',
+};
+
+// Hint shown under the model field for the current provider — helps
+// admins discover valid model slugs (especially for OpenRouter's
+// vendor/model format).
+const MODEL_HINT: Record<AiProvider, string> = {
+  openai: '',
+  anthropic: '',
+  openrouter:
+    'Any slug from openrouter.ai/models — e.g. anthropic/claude-3.5-sonnet, openai/gpt-4o-mini, meta-llama/llama-3.1-70b-instruct.',
 };
 
 export function AiConfig() {
@@ -131,6 +143,7 @@ export function AiConfig() {
     const isDefaultModel =
       model === AI_PROVIDER_DEFAULT_MODEL.openai ||
       model === AI_PROVIDER_DEFAULT_MODEL.anthropic ||
+      model === AI_PROVIDER_DEFAULT_MODEL.openrouter ||
       model.trim() === '';
     if (isDefaultModel) setModel(AI_PROVIDER_DEFAULT_MODEL[next]);
   };
@@ -276,10 +289,13 @@ export function AiConfig() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="min-w-[16rem]">
                     <SelectItem value="openai">{PROVIDER_LABEL.openai}</SelectItem>
                     <SelectItem value="anthropic">
                       {PROVIDER_LABEL.anthropic}
+                    </SelectItem>
+                    <SelectItem value="openrouter">
+                      {PROVIDER_LABEL.openrouter}
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -294,6 +310,11 @@ export function AiConfig() {
                   placeholder={AI_PROVIDER_DEFAULT_MODEL[provider]}
                   disabled={disabled}
                 />
+                {MODEL_HINT[provider] && (
+                  <p className="text-xs text-muted-foreground">
+                    {MODEL_HINT[provider]}
+                  </p>
+                )}
               </div>
             </div>
 

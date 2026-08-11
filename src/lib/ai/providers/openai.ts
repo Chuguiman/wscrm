@@ -20,29 +20,55 @@ interface OpenAiResponse {
 }
 
 /**
+ * Options for calling an OpenAI-compatible Chat Completions endpoint.
+ * OpenRouter reuses this adapter with a different `url`, provider label
+ * for error messages, and a few extra headers (HTTP-Referer / X-Title).
+ */
+interface OpenAiCompatibleOptions {
+  url?: string
+  providerLabel?: string
+  extraHeaders?: Record<string, string>
+  /** Some OpenAI-compatible gateways (OpenRouter) don't accept
+   *  `max_completion_tokens` and want the legacy `max_tokens` name. */
+  useLegacyMaxTokens?: boolean
+}
+
+/**
  * Call OpenAI's Chat Completions endpoint with the caller's own key.
  * Returns the raw assistant text + token usage (handoff parsing happens
  * in `generateReply`).
  */
-export async function generateOpenAi(args: ProviderArgs): Promise<ProviderResult> {
+export async function generateOpenAi(
+  args: ProviderArgs,
+  opts: OpenAiCompatibleOptions = {},
+): Promise<ProviderResult> {
   const { apiKey, model, systemPrompt, messages, timeoutMs } = args
+  const url = opts.url ?? OPENAI_URL
+  const providerLabel = opts.providerLabel ?? 'OpenAI'
+
+  const body: Record<string, unknown> = {
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...mergeConsecutive(messages),
+    ],
+  }
+  if (opts.useLegacyMaxTokens) {
+    body.max_tokens = MAX_OUTPUT_TOKENS
+  } else {
+    body.max_completion_tokens = MAX_OUTPUT_TOKENS
+  }
 
   let res: Response
   try {
-    res = await fetch(OPENAI_URL, {
+    res = await fetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
+        ...(opts.extraHeaders ?? {}),
       },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...mergeConsecutive(messages),
-        ],
-        max_completion_tokens: MAX_OUTPUT_TOKENS,
-      }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     })
   } catch (err) {
@@ -50,13 +76,13 @@ export async function generateOpenAi(args: ProviderArgs): Promise<ProviderResult
   }
 
   if (!res.ok) {
-    throw await providerHttpError('OpenAI', res)
+    throw await providerHttpError(providerLabel, res)
   }
 
   const data = (await res.json().catch(() => null)) as OpenAiResponse | null
   const text = data?.choices?.[0]?.message?.content
   if (!text || typeof text !== 'string' || !text.trim()) {
-    throw new AiError('OpenAI returned an empty response.', {
+    throw new AiError(`${providerLabel} returned an empty response.`, {
       code: 'empty_response',
     })
   }
