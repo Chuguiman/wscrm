@@ -6,7 +6,10 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm install --no-audit --no-fund
+# Lock is generated on Windows and omits Linux-only optional deps
+# (@parcel/watcher-linux-x64-musl, @next/swc-linux-*). Drop the lock so
+# npm resolves the correct platform binaries fresh in the container.
+RUN rm -f package-lock.json && npm install --no-audit --no-fund
 
 # ---------------------------------------------------------------
 # Stage 2 — build
