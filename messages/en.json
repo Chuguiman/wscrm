@@ -279,7 +279,13 @@
       "deals": "Deals",
       "noTags": "No tags",
       "noDeals": "No deals",
-      "addNotePlaceholder": "Add a note..."
+      "addNotePlaceholder": "Add a note...",
+      "pipelineStage": "Pipeline stage",
+      "noPipeline": "No active deal — add one to track its stage.",
+      "addTag": "Add tag",
+      "addDeal": "New deal",
+      "noTagsAvailable": "No tags yet. Create tags in Settings.",
+      "searchTags": "Search tags..."
     },
     "aiBanner": {
       "pausedTitle": "AI assistant is paused here",

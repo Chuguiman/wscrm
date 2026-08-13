@@ -602,6 +602,14 @@ async function processMessage(
       conversation_id: conversation.id,
       contact_id: contactRecord.id,
     })
+    // Auto-add the contact to the top of the default pipeline as a new
+    // prospect so the funnel view picks them up without manual entry.
+    await ensureNewProspectDeal(
+      accountId,
+      configOwnerUserId,
+      contactRecord.id,
+      contactName || contactRecord.name || senderPhone,
+    )
   }
 
   // Reactions short-circuit here — they aren't messages. We never insert
@@ -1125,4 +1133,59 @@ async function findOrCreateConversation(
   }
 
   return { conversation: newConv, created: true }
+}
+
+/**
+ * When a fresh conversation opens, drop the contact into the top of the
+ * default pipeline as a "new prospect" so it shows up on the funnel view
+ * without the agent having to click "New deal". No-op if the contact
+ * already has any deal (avoid duplicates on race / thread re-open) or if
+ * the account has no pipeline configured yet.
+ */
+async function ensureNewProspectDeal(
+  accountId: string,
+  configOwnerUserId: string,
+  contactId: string,
+  contactName: string,
+): Promise<void> {
+  const db = supabaseAdmin()
+
+  const { data: existing } = await db
+    .from('deals')
+    .select('id')
+    .eq('contact_id', contactId)
+    .limit(1)
+  if (existing && existing.length > 0) return
+
+  const { data: pipeline } = await db
+    .from('pipelines')
+    .select('id')
+    .eq('account_id', accountId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (!pipeline) return
+
+  const { data: firstStage } = await db
+    .from('pipeline_stages')
+    .select('id')
+    .eq('pipeline_id', pipeline.id)
+    .order('position', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (!firstStage) return
+
+  const { error } = await db.from('deals').insert({
+    account_id: accountId,
+    user_id: configOwnerUserId,
+    pipeline_id: pipeline.id,
+    stage_id: firstStage.id,
+    contact_id: contactId,
+    title: contactName || 'Nuevo prospecto',
+    value: 0,
+    status: 'open',
+  })
+  if (error) {
+    console.error('Error creating auto prospect deal:', error)
+  }
 }
